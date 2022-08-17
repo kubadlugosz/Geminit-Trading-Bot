@@ -6,12 +6,15 @@ from ta.momentum import rsi
 
 def initiate_exchange():
 
-    exchange = ccxt.gemini({
-    'enableRateLimit': True,
-    'apiKey': config.key,
-    'secret': config.secret
-    })
+    # exchange = ccxt.binance({
+    # 'enableRateLimit': True,
+    # 'apiKey': config.key,
+    # 'secret': config.secret
+    # })
+    exchange = ccxt.phemex()
     exchange.set_sandbox_mode(True)
+    exchange.apiKey = config.key
+    exchange.secret = config.secret
     return exchange
 
 
@@ -26,7 +29,8 @@ def getData(exchange,symbol,time):
     37.72941911    // (V)olume float (usually in terms of the base currency, the exchanges docstring may list whether quote or base units are used)
     """
     columns = ['Date','Open','High Price','Low Price','Close','Volume']
-    df = pd.DataFrame(exchange.fetch_ohlcv(symbol=symbol,timeframe=time), columns=columns)
+    binance = ccxt.binance()
+    df = pd.DataFrame(ccxt.binance().fetch_ohlcv(symbol=symbol,timeframe=time), columns=columns)
     df['Date'] = pd.to_datetime(df['Date'], unit='ms')
     return df
 
@@ -44,42 +48,99 @@ def strategy(df,lower_limit,upper_limit):
         return 'Neutral'
 
     
-def execute_order(exchange,symbol,time, qty, open_position=False):
+def trading_bot(exchange,symbol,time, investment, upper_limit, lower_limit ,open_position=False):
     print(open_position)
+    price_buy = 0
+    price_sell = 0
     while True:
         df = getData(exchange,symbol=symbol,time=time)
         df = RSI(df)
-        position = strategy(df, 47,55)
+        position = strategy(df, lower_limit,upper_limit)
         print(df.iloc[-1:])
+
+        bitcoin_ticker= exchange.fetch_ticker(symbol)
+        price = bitcoin_ticker['close']
+        qty = investment/price
         if not open_position:
             if position == 'Buy':
-                print('Executing buy order')
-
+                print('Executing buy order',price)
+                
+                #exchange.createLimitBuyOrder(symbol=symbol,amount= qty, price =price)
+                exchange.create_market_buy_order(symbol = symbol, amount = qty)
                 open_position = True 
+                timestamp,order_price,order_type,order_qty = get_closed_order(exchange,symbol)
+                account_balance = get_balance(exchange)
+                price_buy = order_price
+                profit = 0
+                create_log(timestamp,order_price,order_type,order_qty,account_balance,profit)
+
                 break
-            sleep(60)
+            
         
     if open_position:
         while True:
             df = getData(exchange,symbol=symbol,time=time)
             df = RSI(df)
-            position = strategy(df, 47,55)
+            position = strategy(df, lower_limit,upper_limit)
             print(df.iloc[-1:])
             if position == 'Sell':
                 print('Executing sell order')
+                exchange.create_market_sell_order(symbol = symbol, amount = qty)
                 open_position = False 
+                timestamp,order_price,order_type,order_qty = get_closed_order(exchange,symbol)
+                account_balance = get_balance(exchange)
+                price_sell = order_price
+                profit = price_sell - price_buy
+                create_log(timestamp,order_price,order_type,order_qty,account_balance,profit)
+
                 break 
-            sleep(60)
+            
+    
+def get_closed_order(exchange,symbol):
+
+    order = exchange.fetch_closed_orders(symbol)[-1]
+    time = order['datetime']
+    order_type =order['side']
+    order_price = order['price']
+    order_qty = order['amount']
+
+    return time,order_price,order_type,order_qty
+
+def get_balance(exchange):
+
+    balance = exchange.fetch_balance()
+    return balance['USDT']['total']
+
+def create_log(time,order_price,order_type,order_qty,account_balance,profit):
+    file_path = '/home/jakub/Python-Projects/Gemini-Trading'
+    file_name = 'trades.csv'
+    df = pd.DataFrame({'DateTime': {},'Order_Price': {}, 'Order_Type': {},
+    'Order_Qty': {}, 'Balance': {}, 'Profit': {}
+    })
+
+    df = df.append({'DateTime': time,'Order_Price': order_price, 'Order_Type': order_type,
+    'Order_Qty': order_qty, 'Balance': account_balance, 'Profit': profit
+    },ignore_index=True)
+    df.to_csv('{}/{}'.format(file_path,file_name))
+    
+    f = open('{}/trades.txt'.format(file_path),'a')
+    f.write('{} {} {} {} {} {} \n'.format(time,order_price,order_type,
+                                        order_qty,account_balance,profit))
     
 
 
+
 def main():
-    symbol = 'BTC/USD'
-    time = '1m'
+    symbol = 'BTC/USDT'
+    time = '15m'
+    investment = 100
+    lower_limit = 70
+    upper_limit = 30
     exchange = initiate_exchange()
-    #print(exchange.fetch_balance())
-    while True:
-        execute_order(exchange , symbol,time, 1, open_position=False)
+    get_closed_order(exchange,symbol)
+    get_balance(exchange)
+    while(True):
+        trading_bot(exchange,symbol,time, investment, lower_limit,upper_limit,open_position=False)
         
     
     
