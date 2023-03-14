@@ -30,7 +30,7 @@ def getData(exchange,symbol,time):
     """
     columns = ['Date','Open','High Price','Low Price','Close','Volume']
     binance = ccxt.binance()
-    df = pd.DataFrame(ccxt.binance().fetch_ohlcv(symbol=symbol,timeframe=time), columns=columns)
+    df = pd.DataFrame(ccxt.gemini().fetch_ohlcv(symbol=symbol,timeframe=time), columns=columns)
     df['Date'] = pd.to_datetime(df['Date'], unit='ms')
     return df
 
@@ -98,7 +98,8 @@ def trading_bot(exchange,symbol,time, investment, upper_limit, lower_limit ,open
     
 def get_closed_order(exchange,symbol):
 
-    order = exchange.fetch_closed_orders(symbol)[-1]
+    order = exchange.fetch_closed_orders(symbol)#[-1]
+    print(order)
     time = order['datetime']
     order_type =order['side']
     order_price = order['price']
@@ -137,7 +138,8 @@ def main():
     lower_limit = 70
     upper_limit = 30
     exchange = initiate_exchange()
-    get_closed_order(exchange,symbol)
+    
+    #get_closed_order(exchange,symbol)
     get_balance(exchange)
     while(True):
         trading_bot(exchange,symbol,time, investment, lower_limit,upper_limit,open_position=False)
