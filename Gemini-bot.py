@@ -133,7 +133,7 @@ def create_log(time,order_price,order_type,order_qty,account_balance,profit):
 
 def main():
     symbol = 'BTC/USDT'
-    time = '15m'
+    time = '1m'
     investment = 100
     lower_limit = 70
     upper_limit = 30
