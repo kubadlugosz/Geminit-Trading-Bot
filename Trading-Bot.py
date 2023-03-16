@@ -14,6 +14,11 @@ from tqdm import tqdm
 import itertools
 import backtrader as bt
 from plotly.subplots import make_subplots
+
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox
+
 pd.options.mode.chained_assignment = None
 warnings.filterwarnings("ignore")
 
@@ -54,9 +59,10 @@ def getData(symbol,time):
     return df
 
 class Backtester:
-    def __init__(self, data, strategy,initial_account_value, ivestment_amount,fee_per_trade):
+    def __init__(self, data, strategy,selected_strategy,initial_account_value, ivestment_amount,fee_per_trade):
         self.data = data
         self.strategy = strategy
+        self.selected_strategy = selected_strategy
         self.initial_account_value = initial_account_value
         self.ivestment_amount = ivestment_amount
         self.fee_per_trade = fee_per_trade
@@ -68,7 +74,7 @@ class Backtester:
         data = self.data.copy()
         
         # Apply the strategy to the data
-        signals = self.strategy.generate_signals_backtest(data,**params)
+        signals = self.strategy.generate_signals_backtest(data,self.selected_strategy,**params)
         # Calculate the total profit in whole dollars
         total_profit,account_value,signals= self.calculate_total_profits(signals,self.initial_account_value,self.ivestment_amount,self.fee_per_trade)
         
@@ -278,60 +284,65 @@ class Backtester:
 
 class MyStrategy:
     
-    def generate_signals_backtest(self, data,**params):
-        # from ta.momentum import rsi
-        # # Initialize an empty signals Series with the same index as the data
-        # signals = pd.Series(index=data.index)
-        
-        # # Define your trading signals here
-        # lower_limit= params['buy_threshold'] 
-        # upper_limit = params['sell_threshold']
-        
-        # # Calculate the RSI indicator
-        # #data["RSI"] = rsi(data["Close"],window=params['rsi_period'])
-        # data['RSI']= ta.momentum.RSIIndicator(data["Close"], window=params['rsi_period']).rsi()
-        # print(data)
-        # #data = rsi_calculation(data,params['rsi_period'])
-
-        # #data["RSI"] = ta.momentum.RSIIndicator(close=data["close"], window=params['rsi_period']).rsi()
-        # data = data.dropna()
-        # data = data.reset_index(drop=True)
-        # # # Generate the signals based on the RSI value
-        # #data["signal"] = data['RSI'].apply(lambda x: 1 if x < lower_limit else -1 if x > upper_limit else 0)
-        # # Create the 'signal' column
-        # #data = data.copy()
-        # data['Signal'] = 0
-        
-        
-        # # Set a flag to track if we're currently in a position
-        # in_position = False
-        
-        # # Loop through each row and set the signal based on the RSI and previous position
-      
-        # for i in range(1, len(data)):
-        #     rsi_value = data['RSI'][i]
-           
-        #     if in_position:
-        #         # If we're currently in a position, continue holding until a Sell signal
-        #         if rsi_value >= upper_limit:
-        #             data['Signal'][i] = -1
-        #             in_position = False
-        #         else:
-        #             data['Signal'][i] = 0
-        #     else:
-        #         # If we're not currently in a position, Buy if RSI is below the lower limit
-        #         if rsi_value <= lower_limit:
-        #             data['Signal'][i] = 1
-        #             in_position = True
-        #         else:
-        #             data['Signal'][i] = 0
-            
+    def generate_signals_backtest(self,data,user_input,**params):
        
-
         # data['Signal'] = data['Signal'].astype("float")
+        if user_input == 'MACD':
+            signals = self.MACD_strategy(data,**params)
+        elif user_input == 'RSI':
+            signals = self.RSI_strategy(data,**params)
+        return signals 
+    
+    def RSI_strategy(self,data,**params):
+        from ta.momentum import rsi
         
+        # Define your trading signals here
+        lower_limit= params['buy_threshold'] 
+        upper_limit = params['sell_threshold']
+        print(data)
+        # Calculate the RSI indicator
+        #data["RSI"] = rsi(data["Close"],window=params['rsi_period'])
+        data['RSI']= ta.momentum.RSIIndicator(data["Close"], window=params['rsi_period']).rsi()
+        print(data)
+        #data = rsi_calculation(data,params['rsi_period'])
 
-
+        #data["RSI"] = ta.momentum.RSIIndicator(close=data["close"], window=params['rsi_period']).rsi()
+        data = data.dropna()
+        data = data.reset_index(drop=True)
+        # # Generate the signals based on the RSI value
+        #data["signal"] = data['RSI'].apply(lambda x: 1 if x < lower_limit else -1 if x > upper_limit else 0)
+        # Create the 'signal' column
+        #data = data.copy()
+        data['Signal'] = 0
+        
+        
+        # Set a flag to track if we're currently in a position
+        in_position = False
+        
+        # Loop through each row and set the signal based on the RSI and previous position
+      
+        for i in range(1, len(data)):
+            rsi_value = data['RSI'][i]
+           
+            if in_position:
+                # If we're currently in a position, continue holding until a Sell signal
+                if rsi_value >= upper_limit:
+                    data['Signal'][i] = -1
+                    in_position = False
+                else:
+                    data['Signal'][i] = 0
+            else:
+                # If we're not currently in a position, Buy if RSI is below the lower limit
+                if rsi_value <= lower_limit:
+                    data['Signal'][i] = 1
+                    in_position = True
+                else:
+                    data['Signal'][i] = 0
+        return data
+            
+        
+        
+    def MACD_strategy(self,data,**params):
         #MACD trading strategy
         macd_df = calculate_macd(data, **params)
         data = pd.concat([data, macd_df], axis=1)
@@ -360,9 +371,7 @@ class MyStrategy:
                 else:
                     data['Signal'][i] = 0
 
-      
-
-        return data
+            return data
     
     def generate_signals_trading_bot(self, data,**params):
         rsi = data['RSI'].iloc[-1]
@@ -476,31 +485,139 @@ def get_balance(exchange):
     return balance['USDT']['total']
 
 
+class TradingApp:
+    def __init__(self, master):
+        self.master = master
+        # self.backtester = backtester
+        self.master.title("Trading App")
+        self.master.geometry("300x300")
 
+        self.frame = tk.Frame(self.master)
+        self.frame.pack()
 
+        self.label = tk.Label(self.frame, text="Select an option:")
+        self.label.pack()
+
+        self.option_var = tk.StringVar(value="Backtest")
+        self.option_menu = ttk.OptionMenu(self.frame, self.option_var, "Backtest", "Backtest", "Plot", "Optimize", "Trade")
+        self.option_menu.pack()
+
+        self.strategy_label = tk.Label(self.frame, text="Select a strategy:")
+        self.strategy_label.pack()
+
+        self.strategy_var = tk.StringVar(value="RSI")
+        self.strategy_menu = ttk.OptionMenu(self.frame, self.strategy_var, "RSI", "RSI", "MACD", command=self.update_param_labels)
+        self.strategy_menu.pack()
+
+        self.param1_label = tk.Label(self.frame, text="RSI Period:")
+        self.param1_label.pack()
+
+        self.param1_entry = tk.Entry(self.frame)
+        self.param1_entry.pack()
+
+        self.param2_label = tk.Label(self.frame, text="Buy Threshold:")
+        self.param2_label.pack()
+
+        self.param2_entry = tk.Entry(self.frame)
+        self.param2_entry.pack()
+
+        self.param3_label = tk.Label(self.frame, text="Sell Threshold:")
+        self.param3_label.pack()
+
+        self.param3_entry = tk.Entry(self.frame)
+        self.param3_entry.pack()
+
+        self.submit_button = tk.Button(self.frame, text="Submit", command=self.submit)
+        self.submit_button.pack()
+
+        #self.backtester = Backtester()  # create a new instance of Backtester
+    
+    def update_param_labels(self, selected_strategy):
+        if selected_strategy == "RSI":
+            self.param1_label.config(text="RSI Period:")
+            self.param2_label.config(text="Buy Threshold:")
+            self.param3_label.config(text="Sell Threshold:")
+        elif selected_strategy == "MACD":
+            self.param1_label.config(text="EMA Long Period:")
+            self.param2_label.config(text="EMA Short Period:")
+            self.param3_label.config(text="Signal Line Period:")
+    
+    
+    def submit(self):
+        selected_option = self.option_var.get()
+        selected_strategy = self.strategy_var.get()
+        param1 = int(self.param1_entry.get())
+        param2 = int(self.param2_entry.get())
+        param3 = int(self.param3_entry.get())
+        
+        symbol = "BTC/USDT"
+        time_frame = '15m'
+        df = getData(symbol,time_frame) 
+        strategy = MyStrategy()
+        backtester = Backtester(df, strategy,selected_strategy,1000, 500, 0.0099)
+        
+        if selected_option == "Backtest":
+            if selected_strategy == "RSI":
+                inital_parameters = {'rsi_period': param1, 'buy_threshold': param2, 'sell_threshold': param3}
+                print(backtester.run_backtest(**inital_parameters))
+            elif selected_strategy == "MACD":
+                inital_parameters = {'ema_long_period': param1, 'ema_short_period': param2, 'signal_line_period': param3}
+                print(backtester.run_backtest(**inital_parameters))
+        elif selected_option == "Plot":
+            if selected_strategy == "RSI":
+                inital_parameters = {'rsi_period': param1, 'buy_threshold': param2, 'sell_threshold': param3}
+                backtester.plot_backtest(**inital_parameters)
+            elif selected_strategy == "MACD":
+                inital_parameters = {'ema_long_period': param1, 'ema_short_period': param2, 'signal_line_period': param3}
+                backtester.plot_backtest(**inital_parameters)
 
 
 def main():
-    #RSI
-    #inital_parameters = {'rsi_period': 17.0, 'buy_threshold': 21.0, 'sell_threshold': 95.0}
-    #MACD
-    symbol = "ETH/USDT"
-    time_frame = '15m'
-    df = getData(symbol,time_frame) 
-    inital_parameters = {'ema_long_period': 11.0, 'ema_short_period': 6.0, 'signal_line_period': 14.0}
-    strategy = MyStrategy()
-    backtester = Backtester(df, strategy,100, 10, 0.0099)
-    print(backtester.run_backtest(**inital_parameters))
-    # rsi_data = strategy.generate_signals_backtest(df,**inital_parameters)
-    # # print(rsi_data)
-    #backtester.plot_backtest(**inital_parameters)
+    
+    # # Display the options to the user
+    # print("Please select an option:")
+    # print("1-Backtest")
+    # print("2-Plot")
+    # print("3-Optimize")
+    # print("4-Trade")
+    
+    # user_input = int(input("Enter your selection (1, 2, 3, 4): "))
+    
+    # #RSI
+    # #inital_parameters = {'rsi_period': 17.0, 'buy_threshold': 21.0, 'sell_threshold': 95.0}
+    # #MACD
+    # symbol = "BTC/USDT"
+    # time_frame = '15m'
+    # df = getData(symbol,time_frame) 
+    # strategy = MyStrategy()
+    # backtester = Backtester(df, strategy,1000, 500, 0.0099)
+    # if user_input == 1:
+    #     print("Please select an strategy:")
+    #     print("1-RSI")
+    #     print("2-MACD")
+    #     user_input = int(input("Enter your selection (1, 2: "))
+    #     if user_input == 1:
+    #         param1 = int(input("Enter your selection (1, 2: "))
+    #         param2 = int(input("Enter your selection (1, 2: "))
+    #         param3 = int(input("Enter your selection (1, 2: "))
+        
+        
+    #     inital_parameters = {'ema_long_period': 11.0, 'ema_short_period': 6.0, 'signal_line_period': 14.0}
+    
+        
+    #     print(backtester.run_backtest(**inital_parameters))
+    # # rsi_data = strategy.generate_signals_backtest(df,**inital_parameters)
+    # # # print(rsi_data)
+    # elif user_input == 2:
+    #     backtester.plot_backtest(**inital_parameters)
    
-    # param_names = ['rsi_period','buy_threshold','sell_threshold']
-    # param_ranges = [{x for x in range(1,20,1)},{x for x in range(1,30,5)},{x for x in range(60,100,5)}]
-    # param_names = ['ema_long_period','ema_short_period','signal_line_period']
-    # param_ranges = [{x for x in range(1,30,1)},{x for x in range(1,20,5)},{x for x in range(1,15,1)}]
-    # param_combo = generate_parameter_combinations(param_names, param_ranges)
-    # print(backtester.optimize_parameters(param_combo))
+    # # param_names = ['rsi_period','buy_threshold','sell_threshold']
+    # # param_ranges = [{x for x in range(1,20,1)},{x for x in range(1,30,5)},{x for x in range(60,100,5)}]
+    # elif user_input == 3:
+    #     param_names = ['ema_long_period','ema_short_period','signal_line_period']
+    #     param_ranges = [{x for x in range(1,30,1)},{x for x in range(1,20,5)},{x for x in range(1,15,1)}]
+    #     param_combo = generate_parameter_combinations(param_names, param_ranges)
+    #     print(backtester.optimize_parameters(param_combo))
     # exchange = initiate_exchange()
     
     # #get_closed_order(exchange,symbol)
@@ -512,8 +629,9 @@ def main():
     #     trade_bot = Trading_Bot(df,exchange,symbol,strategy,100, 10,0.0099)
     #     trade_bot.run_strategy(**inital_parameters)
     #     sleep(30)
-    
-    
+    root = tk.Tk()
+    trading_app = TradingApp(root)
+    root.mainloop()
 main()
 
 
