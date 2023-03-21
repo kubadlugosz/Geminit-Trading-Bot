@@ -178,9 +178,12 @@ class Backtester:
         # Calculate the number of winning and losing trades
         num_wins = len(data[data['Gains/Losses'] > 0])
         num_losses = len(data[data['Gains/Losses'] < 0])
-
+        
+        if num_losses == 0 and num_wins == 0:
+            win_rate = 0
         # Calculate the win rate as a percentage
-        win_rate = num_wins / (num_wins + num_losses) * 100
+        else:
+            win_rate = num_wins / (num_wins + num_losses) * 100
 
         return win_rate
     
@@ -273,6 +276,7 @@ class Backtester:
                     continue
             
         results_df = pd.DataFrame(results)
+       
         max_win_ratio = results_df['win_rate'].max()
         max_win_ratio_params = results_df.loc[results_df['win_rate'].idxmax()].to_dict()
         
@@ -300,11 +304,11 @@ class MyStrategy:
         # Define your trading signals here
         lower_limit= params['Buy Threshold'] 
         upper_limit = params['Sell Threshold']
-        print(data)
+        
         # Calculate the RSI indicator
         #data["RSI"] = rsi(data["Close"],window=params['RSI Period'])
         data['RSI']= ta.momentum.RSIIndicator(data["Close"], window=params['RSI Period']).rsi()
-        print(data)
+       
         #data = rsi_calculation(data,params['RSI Period'])
 
         #data["RSI"] = ta.momentum.RSIIndicator(close=data["close"], window=params['RSI Period']).rsi()
@@ -372,7 +376,7 @@ class MyStrategy:
                 else:
                     data['Signal'][i] = 0
 
-            return data
+        return data
     
     def generate_signals_trading_bot(self, data,**params):
         rsi = data['RSI'].iloc[-1]
@@ -493,7 +497,7 @@ class TradingApp(tk.Tk):
         self.title("Trading App")
 
         # Set the window size
-        self.geometry("400x400")
+        self.geometry("500x500")
 
         # Create the symbol label and dropdown
         symbol_label = ttk.Label(self, text="Symbol:")
@@ -590,6 +594,7 @@ class TradingApp(tk.Tk):
             print(backtester.run_backtest(**param_values))
 
         elif mode == "Plot Backtest":
+
             backtester.plot_backtest(**param_values)
         
         elif mode == "Optimize":
@@ -600,71 +605,52 @@ class TradingApp(tk.Tk):
             else:
                 # Invalid strategy selected
                 messagebox.showerror("Error", "Please select a valid strategy.")
-                return
 
-            # Create a new window to display the parameter optimization inputs
-            optimize_window = tk.Toplevel()
+            # Create a separate window to display the parameter names and input fields for start, stop, and step
+            optimize_window = tk.Toplevel(self)
             optimize_window.title("Optimize Parameters")
 
-            # Create a table to display the parameter combinations
-            table = ttk.Treeview(optimize_window, columns=param_names, show="headings")
+            # Create a label for each parameter name and input fields for start, stop, and step
+            param_entries = []
             for param_name in param_names:
-                table.heading(param_name, text=param_name)
-            table.grid(row=0, column=0, columnspan=len(param_names))
+                label = ttk.Label(optimize_window, text=param_name)
+                label.pack(side=tk.TOP, padx=10, pady=5)
 
-            # Get the parameter ranges from the user
-            param_ranges = []
-            for param_name in param_names:
-                param_range = simpledialog.askstring(param_name, f"Please enter the {param_name} range in the format 'start,stop,step'")
-                if param_range is None:
-                    # User canceled the input dialog box
-                    return
-                param_range = param_range.split(",")
-                param_range = [float(val.strip()) for val in param_range]
-                param_ranges.append(param_range)
+                start_entry = ttk.Entry(optimize_window)
+                start_entry.pack(side=tk.TOP, padx=10, pady=5)
+                stop_entry = ttk.Entry(optimize_window)
+                stop_entry.pack(side=tk.TOP, padx=10, pady=5)
+                step_entry = ttk.Entry(optimize_window)
+                step_entry.pack(side=tk.TOP, padx=10, pady=5)
 
-            # Generate all possible combinations of parameter values
-            param_combinations = list(itertools.product(*[np.arange(*param_range) for param_range in param_ranges]))
+                param_entries.append((param_name, start_entry, stop_entry, step_entry))
 
-            # Add the parameter combinations to the table
-            for i, param_combination in enumerate(param_combinations):
-                values = [param_combination[j] for j in range(len(param_names))]
-                table.insert("", "end", values=values)
-
-            # Add a button to run the optimization
-            optimize_button = tk.Button(optimize_window, text="Optimize", command=lambda: run_optimization())
-            optimize_button.grid(row=1, column=0)
-
+            # Create a button to run the optimization with the specified parameters
             def run_optimization():
-                # Get the selected strategy and parameter ranges
-                if selected_strategy == "RSI":
-                    param_names = ["RSI Period", "Buy Threshold", "Sell Threshold"]
-                elif selected_strategy == "MACD":
-                    param_names = ["EMA Long Period", "EMA Short Period", "Signal Line Period"]
-                else:
-                    # Invalid strategy selected
-                    messagebox.showerror("Error", "Please select a valid strategy.")
-                    return
-                param_ranges = []
-                for param_name in param_names:
-                    param_range = simpledialog.askstring(param_name, f"Please enter the {param_name} range in the format 'start,stop,step'")
-                    if param_range is None:
-                        # User canceled the input dialog box
-                        return
-                    param_range = param_range.split(",")
-                    param_range = [float(val.strip()) for val in param_range]
-                    param_ranges.append(param_range)
-
-                # Generate all possible combinations of parameter values
-                param_combinations = list(itertools.product(*[np.arange(*param_range) for param_range in param_ranges]))
-                param_combinations = [dict(zip(param_names, vals)) for vals in param_combinations]
-                print(param_combinations)
+                param_values = []
+                param_names=[]
+                for param_entry in param_entries:
+                    param_name = param_entry[0]
+                    start = float(param_entry[1].get())
+                    stop = float(param_entry[2].get())
+                    step = float(param_entry[3].get())
+                    values = {x for x in range(int(start), int(stop), int(step))}
+                    param_values.append(values)
+                    param_names.append(param_name)
+              
+                param_combo = generate_parameter_combinations(param_names, param_values)
                 
-                # TODO: Implement the parameter optimization using the selected strategy and parameter ranges
-                backtester = Backtester(df, strategy,selected_strategy,account_amount, investment_amount)
-                print(backtester.optimize_parameters(**param_combinations))
-                # Close the optimization window
-                optimize_window.destroy()
+                print(backtester.optimize_parameters(param_combo))
+                
+
+            # Create a button to run the optimization
+            optimize_button = ttk.Button(optimize_window, text="Optimize", command=run_optimization)
+            optimize_button.pack(side=tk.TOP, padx=10, pady=10)
+
+            # Show the optimize window
+            optimize_window.mainloop()
+
+                        
 
 
 
@@ -688,11 +674,11 @@ def main():
     # #RSI
     # #inital_parameters = {'RSI Period': 17.0, 'Buy Threshold': 21.0, 'Sell Threshold': 95.0}
     # #MACD
-    # symbol = "BTC/USDT"
-    # time_frame = '15m'
-    # df = getData(symbol,time_frame) 
-    # strategy = MyStrategy()
-    # backtester = Backtester(df, strategy,1000, 500, 0.0099)
+    symbol = "BTC/USDT"
+    time_frame = '15m'
+    df = getData(symbol,time_frame) 
+    strategy = MyStrategy()
+    backtester = Backtester(df, strategy,'MACD',1000, 500, 0.0099)
     # if user_input == 1:
     #     print("Please select an strategy:")
     #     print("1-RSI")
@@ -704,10 +690,16 @@ def main():
     #         param3 = int(input("Enter your selection (1, 2: "))
         
         
-    #     inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
+    inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
+
     
-        
-    #     print(backtester.run_backtest(**inital_parameters))
+    print(backtester.run_backtest(**inital_parameters))
+    backtester.plot_backtest(**inital_parameters)
+
+    # param_names = ['EMA Long Period','EMA Short Period','Signal Line Period']
+    # param_ranges = [{x for x in range(1,30,1)},{x for x in range(1,20,5)},{x for x in range(1,15,1)}]
+    # param_combo = generate_parameter_combinations(param_names, param_ranges)
+    # print(backtester.optimize_parameters(param_combo))
     # # rsi_data = strategy.generate_signals_backtest(df,**inital_parameters)
     # # # print(rsi_data)
     # elif user_input == 2:
@@ -736,10 +728,10 @@ def main():
     # root.mainloop()
 
 
-    app = TradingApp()
+    # app = TradingApp()
     
-    # Start the Tk mainloop
-    app.mainloop()
+    # # Start the Tk mainloop
+    # app.mainloop()
 
    
 main()
