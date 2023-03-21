@@ -378,62 +378,94 @@ class MyStrategy:
 
         return data
     
-    def generate_signals_trading_bot(self, data,**params):
-        rsi = data['RSI'].iloc[-1]
-        if rsi <= params['Buy Threshold'] :
-            return 'Buy'
-        elif rsi >= params['Sell Threshold'] :
-            return 'Sell'
-        else:
-            return 'Neutral'
+    def generate_signals_trading_bot(self,data,user_input,**params):
+        if user_input == 'RSI':
+            rsi = data['RSI'].iloc[-1]
+            if rsi <= params['Buy Threshold'] :
+                return 'Buy'
+            elif rsi >= params['Sell Threshold'] :
+                return 'Sell'
+            else:
+                return 'Neutral'
+        elif user_input == 'MACD':
+            macd = data['MACD_line']
+            zero_line = data['Zero_line']
+            signal_line = data['Signal_line']
+            if (macd < signal_line) & (macd > zero_line) & (signal_line > zero_line): 
+                return 'Sell'
+            elif (macd > signal_line) & (macd < zero_line) & (signal_line < zero_line):
+                return 'Buy'
+            else:
+                 return 'Neutral'
+            
         
         
-        
-        
+ 
 
 class Trading_Bot:
-    def __init__(self, data,exchange,symbol,strategy,initial_account_value, investment_per_trade,fee_per_trade):
-        self.data = data
+    def __init__(self,user_input,exchange,symbol,time_frame,strategy,investment_per_trade):
+    
+        self.user_input = user_input
         self.exchange = exchange
         self.symbol = symbol
+        self.time_frame = time_frame
         self.strategy = strategy
-        self.initial_account_value = initial_account_value
         self.investment_per_trade = investment_per_trade
-        self.fee_per_trade = fee_per_trade
+      
 
     def run_strategy(self, **kwargs):
         params = kwargs
         
         open_position=False
-        #while True:
+       
+        while True:
+            df = getData(self.symbol,self.time_frame)
             # Apply the strategy to the data
-        data = self.strategy.generate_signals_backtest(self.data,**params)
-        signal = self.strategy.generate_signals_trading_bot(self.data,**params)
-        data = data.iloc[-1]
-        
-        
-        ticker= self.exchange.fetch_ticker('ETH/USDT')
-        price = ticker['close']
-        qty = self.investment_per_trade/price
-        
-        print(data.Date,data.Close,data.RSI)
-        if not open_position:
-            if signal == 'Buy':
-                print('Executing buy order',price)
-                self.exchange.create_market_buy_order(symbol = self.symbol, amount = qty)
-                open_position = True 
+            data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
+            print(data.tail(1).to_string(index=False))
+            data = data.iloc[-1]
+            signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
+            
+            
+            
+            ticker= self.exchange.fetch_ticker(self.symbol)
+            price = ticker['last']
+            qty = self.investment_per_trade/price
+            qty = int(float(qty))
+            print(signal)
+            
+            
+            if not open_position:
+                if signal == 'Buy':
+                    print('Executing buy order',price)
+                    print(qty)
+                    self.exchange.create_market_buy_order(symbol = self.symbol, amount = qty)
+                    open_position = True 
                 
-                
-               #break
+                    break
 
         if open_position:
-           #while True:
+            while True:
+                df = getData(self.symbol,self.time_frame)
+                # Apply the strategy to the data
+                data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
+                print(data.tail(1).to_string(index=False))
+                data = data.iloc[-1]
+                signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
+                
+                
+                
+                ticker= self.exchange.fetch_ticker(self.symbol)
+                price = ticker['last']
+                qty = self.investment_per_trade/price
+                
+                print(signal)
                 if signal == 'Sell':
                     print('Executing sell order',price)
                     self.exchange.create_market_sell_order(symbol = self.symbol, amount = qty)
                     open_position = False 
 
-                    #break
+                break
 
 
 def generate_parameter_combinations(param_names, param_ranges):
@@ -649,6 +681,11 @@ class TradingApp(tk.Tk):
 
             # Show the optimize window
             optimize_window.mainloop()
+        elif mode == 'Trade':
+            
+            #TODO impletment trading functionality
+            pass 
+            
 
                         
 
@@ -662,70 +699,22 @@ class TradingApp(tk.Tk):
 
 def main():
     
-    # # Display the options to the user
-    # print("Please select an option:")
-    # print("1-Backtest")
-    # print("2-Plot")
-    # print("3-Optimize")
-    # print("4-Trade")
     
-    # user_input = int(input("Enter your selection (1, 2, 3, 4): "))
-    
-    # #RSI
-    # #inital_parameters = {'RSI Period': 17.0, 'Buy Threshold': 21.0, 'Sell Threshold': 95.0}
     # #MACD
     symbol = "BTC/USDT"
-    time_frame = '15m'
+    time_frame = '1m'
     df = getData(symbol,time_frame) 
     strategy = MyStrategy()
-    backtester = Backtester(df, strategy,'MACD',1000, 500, 0.0099)
-    # if user_input == 1:
-    #     print("Please select an strategy:")
-    #     print("1-RSI")
-    #     print("2-MACD")
-    #     user_input = int(input("Enter your selection (1, 2: "))
-    #     if user_input == 1:
-    #         param1 = int(input("Enter your selection (1, 2: "))
-    #         param2 = int(input("Enter your selection (1, 2: "))
-    #         param3 = int(input("Enter your selection (1, 2: "))
+    # backtester = Backtester(df, strategy,'MACD',1000, 500, 0.0099)
+ 
         
-        
+    exchange = initiate_exchange()   
     inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
+    trade_bot = Trading_Bot('MACD',exchange,symbol,time_frame,strategy,100)
+    trade_bot.run_strategy(**inital_parameters)
+    # print(backtester.run_backtest(**inital_parameters))
+    # backtester.plot_backtest(**inital_parameters)
 
-    
-    print(backtester.run_backtest(**inital_parameters))
-    backtester.plot_backtest(**inital_parameters)
-
-    # param_names = ['EMA Long Period','EMA Short Period','Signal Line Period']
-    # param_ranges = [{x for x in range(1,30,1)},{x for x in range(1,20,5)},{x for x in range(1,15,1)}]
-    # param_combo = generate_parameter_combinations(param_names, param_ranges)
-    # print(backtester.optimize_parameters(param_combo))
-    # # rsi_data = strategy.generate_signals_backtest(df,**inital_parameters)
-    # # # print(rsi_data)
-    # elif user_input == 2:
-    #     backtester.plot_backtest(**inital_parameters)
-   
-    # # param_names = ['RSI Period','Buy Threshold','Sell Threshold']
-    # # param_ranges = [{x for x in range(1,20,1)},{x for x in range(1,30,5)},{x for x in range(60,100,5)}]
-    # elif user_input == 3:
-    #     param_names = ['EMA Long Period','EMA Short Period','Signal Line Period']
-    #     param_ranges = [{x for x in range(1,30,1)},{x for x in range(1,20,5)},{x for x in range(1,15,1)}]
-    #     param_combo = generate_parameter_combinations(param_names, param_ranges)
-    #     print(backtester.optimize_parameters(param_combo))
-    # exchange = initiate_exchange()
-    
-    # #get_closed_order(exchange,symbol)
-    # print(get_balance(exchange))
-    # symbol = "ETH/USDT"
-    # time_frame = '1m'
-    # while True:
-    #     df = getData(symbol,time_frame)  
-    #     trade_bot = Trading_Bot(df,exchange,symbol,strategy,100, 10,0.0099)
-    #     trade_bot.run_strategy(**inital_parameters)
-    #     sleep(30)
-    # root = tk.Tk()
-    # trading_app = TradingApp(root)
-    # root.mainloop()
 
 
     # app = TradingApp()
