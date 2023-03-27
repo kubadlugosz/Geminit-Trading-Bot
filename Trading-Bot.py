@@ -19,30 +19,12 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 from tkinter import simpledialog
-
+from binance.client import Client
 pd.options.mode.chained_assignment = None
 warnings.filterwarnings("ignore")
 
 
-# class Data:
-#     def __init__(self,symbol, timeframe):
-
-       
-#         #self.exchange = ccxt.get_exchange(exchange_name)
-#         self.symbol = symbol
-#         self.timeframe = timeframe
-#         self.df = None
-
-#     def fetch_data(self):
-#         candles = ccxt.gemini().fetch_ohlcv(self.symbol, timeframe=self.timeframe)
-#         self.df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
-#         self.df["timestamp"] = pd.to_datetime(self.df["timestamp"], unit="ms")
-#         self.df.set_index("timestamp", inplace=True)
-
-#     def run(self):
-#         self.fetch_data()
-
-def getData(symbol,time):
+def getData(symbol,time,client):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
     4235.4,        // (O)pen price, float
@@ -51,12 +33,18 @@ def getData(symbol,time):
     4230.7,        // (C)losing price, float
     37.72941911    // (V)olume float (usually in terms of the base currency, the exchanges docstring may list whether quote or base units are used)
     """
-    columns = ['Date','Open','High','Low','Close','Volume']
-    df = pd.DataFrame(ccxt.gemini().fetch_ohlcv(symbol=symbol,timeframe=time), columns=columns)
-   
-    df['Date'] = pd.to_datetime(df['Date'], unit='ms')
-    df['Date'] = df['Date'].dt.tz_localize('UTC')
-    df['Date'] = df['Date'].dt.tz_convert('America/Chicago')
+    klines = client.get_historical_klines(symbol=symbol, interval=time)
+
+    columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore']
+    df = pd.DataFrame(klines, columns=columns)
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    df['timestamp'] = df['timestamp'].dt.tz_localize('UTC')
+    df['timestamp'] = df['timestamp'].dt.tz_convert('America/Chicago')
+
+    df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+    df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+
     return df
 
 class Backtester:
@@ -419,7 +407,7 @@ class Trading_Bot:
         open_position=False
        
         while True:
-            df = getData(self.symbol,self.time_frame)
+            df = getData(self.symbol,self.time_frame,self.exchange)
             # Apply the strategy to the data
             data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
             print(data.tail(1).to_string(index=False))
@@ -428,25 +416,31 @@ class Trading_Bot:
             
             
             
-            ticker= self.exchange.fetch_ticker(self.symbol)
-            price = ticker['last']
+            ticker= self.exchange.get_symbol_ticker(symbol=self.symbol)
+            price = float(ticker['price'])
+            
             qty = self.investment_per_trade/price
-            qty = int(float(qty))
+            qty = round(float(qty),4)
             print(signal)
+          
             
             
             if not open_position:
                 if signal == 'Buy':
                     print('Executing buy order',price)
-                    print(qty)
-                    self.exchange.create_market_buy_order(symbol = self.symbol, amount = qty)
+                    
+                                     
+                    self.exchange.create_order(symbol=self.symbol,side='BUY',type='MARKET',quantity=str(qty))
+                   
                     open_position = True 
-                
+                    account = self.exchange.get_account()['balances'][6]['free']
+                    create_log(data.Date,price,'BUY',qty,account,0)
+                    
                     break
 
         if open_position:
             while True:
-                df = getData(self.symbol,self.time_frame)
+                df = getData(self.symbol,self.time_frame,self.exchange)
                 # Apply the strategy to the data
                 data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
                 print(data.tail(1).to_string(index=False))
@@ -455,17 +449,23 @@ class Trading_Bot:
                 
                 
                 
-                ticker= self.exchange.fetch_ticker(self.symbol)
-                price = ticker['last']
+                ticker= self.exchange.get_symbol_ticker(symbol=self.symbol)
+                price = float(ticker['price'])
+                
                 qty = self.investment_per_trade/price
+                qty = round(float(qty),4)
                 
                 print(signal)
                 if signal == 'Sell':
                     print('Executing sell order',price)
-                    self.exchange.create_market_sell_order(symbol = self.symbol, amount = qty)
+                    self.exchange.create_order(symbol=self.symbol,side='SELL',type='MARKET',quantity=str(qty))
                     open_position = False 
+                    account = self.exchange.get_account()['balances'][6]['free']
+                    create_log(data.Date,price,'SELL',qty,account,0)
+                  
+                    break
+                sleep(60)
 
-                break
 
 
 def generate_parameter_combinations(param_names, param_ranges):
@@ -520,6 +520,22 @@ def get_balance(exchange):
 
     balance = exchange.fetch_balance()
     return balance['USDT']['total']
+
+
+def create_log(time,order_price,order_type,order_qty,account_balance,profit):
+    file_name = 'trades.csv'
+    df = pd.DataFrame({'DateTime': {},'Order_Price': {}, 'Order_Type': {},
+    'Order_Qty': {}, 'Balance': {}, 'Profit': {}
+    })
+
+    df = df.append({'DateTime': time,'Order_Price': order_price, 'Order_Type': order_type,
+    'Order_Qty': order_qty, 'Balance': account_balance, 'Profit': profit
+    },ignore_index=True)
+    df.to_csv(file_name)
+    
+    f = open('trades.txt','a')
+    f.write('{} {} {} {} {} {} \n'.format(time,order_price,order_type,
+                                        order_qty,account_balance,profit))
 
 class TradingApp(tk.Tk):
     def __init__(self):
@@ -699,19 +715,22 @@ class TradingApp(tk.Tk):
 
 def main():
     
-    
+    exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
-    symbol = "BTC/USDT"
-    time_frame = '1m'
-    df = getData(symbol,time_frame) 
+    symbol = "ETHUSDT"
+    time_frame = '15m'
+    df = getData(symbol,time_frame,exchange) 
     strategy = MyStrategy()
     # backtester = Backtester(df, strategy,'MACD',1000, 500, 0.0099)
  
         
-    exchange = initiate_exchange()   
+    #exchange = initiate_exchange()   
+    
     inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
     trade_bot = Trading_Bot('MACD',exchange,symbol,time_frame,strategy,100)
+    
     trade_bot.run_strategy(**inital_parameters)
+       
     # print(backtester.run_backtest(**inital_parameters))
     # backtester.plot_backtest(**inital_parameters)
 

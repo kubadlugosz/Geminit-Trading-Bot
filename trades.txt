@@ -1,3 +1,1 @@
-DateTime ,Order_Price , Order_Type, Order_Qty ,  Balance ,  Profit
-
-
+2023-03-27 12:30:00-05:00 1713.75 BUY 0.06 9181.49420000 0 
