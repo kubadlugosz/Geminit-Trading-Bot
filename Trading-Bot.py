@@ -423,7 +423,7 @@ class Trading_Bot:
             qty = round(float(qty),4)
             print(signal)
           
-            
+            sleep(60)
             
             if not open_position:
                 if signal == 'Buy':
