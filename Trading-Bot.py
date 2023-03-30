@@ -264,9 +264,12 @@ class Backtester:
                     continue
             
         results_df = pd.DataFrame(results)
-       
-        max_win_ratio = results_df['win_rate'].max()
-        max_win_ratio_params = results_df.loc[results_df['win_rate'].idxmax()].to_dict()
+        try:
+            max_win_ratio = results_df['win_rate'].max()
+            max_win_ratio_params = results_df.loc[results_df['win_rate'].idxmax()].to_dict()
+        except:
+            max_win_ratio = 0
+            max_win_ratio_params = {}
         
         return {'max_sharpe_ratio': max_win_ratio, 'max_sharpe_ratio_params': max_win_ratio_params}
     
@@ -552,7 +555,7 @@ class TradingApp(tk.Tk):
         symbol_label.pack(side=tk.TOP, padx=10, pady=10)
         self.symbol_var = tk.StringVar()
         self.symbol_dropdown = ttk.Combobox(self, textvariable=self.symbol_var,
-                                            values=['BTC/USDT', 'ETH/USDT', 'LTC/USDT'])
+                                            values=['BTCUSDT', 'ETHUSDT', 'LTCUSDT'])
         self.symbol_dropdown.pack(side=tk.TOP, padx=10, pady=5)
 
         # Create the time frame label and dropdown
@@ -612,7 +615,8 @@ class TradingApp(tk.Tk):
         # Get the selected mode and strategy
         mode = self.mode_var.get()
         selected_strategy = self.strategy_var.get()
-        df = getData(symbol,time_frame)
+        exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
+        df = getData(symbol,time_frame,exchange)
         strategy = MyStrategy()
         backtester = Backtester(df, strategy,selected_strategy,account_amount, investment_amount, fee_per_trade)   
         param_values = {}
@@ -721,20 +725,24 @@ def main():
     time_frame = '15m'
     df = getData(symbol,time_frame,exchange) 
     strategy = MyStrategy()
-    # backtester = Backtester(df, strategy,'MACD',1000, 500, 0.0099)
+    backtester = Backtester(df, strategy,'RSI',1000, 500, 0.0099)
  
         
     #exchange = initiate_exchange()   
     
-    inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
-    trade_bot = Trading_Bot('MACD',exchange,symbol,time_frame,strategy,100)
+    # inital_parameters = {'EMA Long Period': 11.0, 'EMA Short Period': 6.0, 'Signal Line Period': 14.0}
+    # trade_bot = Trading_Bot('MACD',exchange,symbol,time_frame,strategy,100)
     
-    trade_bot.run_strategy(**inital_parameters)
+    # trade_bot.run_strategy(**inital_parameters)
        
     # print(backtester.run_backtest(**inital_parameters))
     # backtester.plot_backtest(**inital_parameters)
-
-
+    #Run optimization
+    #param_name = ['EMA Long Period','EMA Short Period', 'Signal Line Period']
+    param_name = ["RSI Period", "Buy Threshold", "Sell Threshold"]
+    param_value = [{x for x in range(1, 30, 1)},{x for x in range(1, 30, 1)},{x for x in range(70, 100, 1)}]
+    param_combo = generate_parameter_combinations(param_name, param_value)
+    backtester.optimize_parameters(**param_combo)
 
     # app = TradingApp()
     
