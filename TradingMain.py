@@ -45,7 +45,9 @@ def main():
     strategy = MyStrategy.MyStrategy()
     backtester = Backtester.Backtester(df, strategy,'RSI',1000, 500, 0.0099)
     
-    print(df)
+    params = {'k_period': 14, 'd_period': 3}
+    signals = strategy.generate_signals_backtest(df,'Stochastic',**params)
+    print(signals)
 
 
 

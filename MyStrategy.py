@@ -1,4 +1,5 @@
-
+import Utilities as util
+import pandas as pd
 
 class MyStrategy:
     
@@ -9,6 +10,8 @@ class MyStrategy:
             signals = self.MACD_strategy(data,**params)
         elif user_input == 'RSI':
             signals = self.RSI_strategy(data,**params)
+        elif user_input == 'Stochastic':
+            signals = self.Stochastic_strategy(data,**params)
         return signals 
     
     def RSI_strategy(self,data,**params):
@@ -62,7 +65,7 @@ class MyStrategy:
         
     def MACD_strategy(self,data,**params):
         #MACD trading strategy
-        macd_df = calculate_macd(data, **params)
+        macd_df = util.calculate_macd(data, **params)
         data = pd.concat([data, macd_df], axis=1)
         # Set a flag to track if we're currently in a position
         in_position = False
@@ -89,6 +92,37 @@ class MyStrategy:
                 else:
                     data['Signal'][i] = 0
 
+        return data
+    
+    def Stochastic_strategy(self,data,**params):
+        #stochastic ocillator trading strategy
+        stoch_df = util.stochastic_oscillator(data, **params)
+        stoch_df = util.crossover(stoch_df,stoch_df['K'],stoch_df['D'])
+        data = stoch_df.dropna()
+        data = data.reset_index(drop=True)
+        
+        # Calculate the 200-day EMA on the Close price
+        data['EMA'] = data['Close'].ewm(span=200).mean()
+        # Set a flag to track if we're currently in a position
+        in_position = False
+        
+        # Loop through each row and set the signal based on the RSI and previous position
+        data['Signal'] = 0
+
+        for i in range(1, len(data)):
+
+            ema = data['EMA'][i]
+            crossover = data['Crossover'][i]
+            price = data['Close'][i]
+            #condition for buy signal
+            if crossover == 1 and price > ema:
+                data['Signal'][i] = 1
+            #condition for sell signal
+            elif crossover == -1 and price < ema:
+                data['Signal'][i] = -1
+            else:
+                data['Signal'][i] = 0
+        
         return data
     
     def generate_signals_trading_bot(self,data,user_input,**params):
