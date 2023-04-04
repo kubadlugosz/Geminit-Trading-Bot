@@ -16,7 +16,7 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-    binance = ccxt.binance()
+    binance = ccxt.gemini()
     # Fetch historical OHLCV data
     ohlcv = binance.fetch_ohlcv(symbol, time)
     

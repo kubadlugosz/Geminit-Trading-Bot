@@ -39,7 +39,7 @@ def main():
     
     exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
-    symbol = "LINKUSDT"
+    symbol = "LINK/USD"
     time_frame = '15m'
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()
