@@ -2,8 +2,9 @@ import ccxt
 import itertools
 import pandas as pd
 import config
-
-
+import numpy as np
+import ta
+from scipy import stats
 def getData(symbol,time):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
@@ -15,7 +16,7 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-    binance = ccxt.binanceus()
+    binance = ccxt.binance()
     # Fetch historical OHLCV data
     ohlcv = binance.fetch_ohlcv(symbol, time)
     
@@ -218,6 +219,80 @@ def stochastic_oscillator(df, **params):
     # Return the new DataFrame with %K and %D columns
     return df_so
 
+
+
+
+def calculate_atr_stoploss(df, length=14):
+    df['TR'] = np.max([df['High'] - df['Low'], abs(df['High'] - df['Close'].shift()), abs(df['Low'] - df['Close'].shift())], axis=0)
+    df['ATR'] = df['TR'].rolling(window=length).mean()
+    # Set inputs for stop loss calculation
+    multiplier = 1.5
+    src1 = 'High'
+    src2 = 'Low'
+
+    # Calculate stop loss levels
+    df['ATR_High'] = df[src1] - multiplier * df['ATR']
+    df['ATR_Low'] = df[src2] + multiplier * df['ATR']
+    multiplier = 1.5
+    src1 = 'High'
+    src2 = 'Low'
+
+    # Calculate stop loss levels
+    df['ATR_High'] = df[src1] - multiplier * df['ATR']
+    df['ATR_Low'] = df[src2] + multiplier * df['ATR']
+    
+    return df
+
+
+def linear_regression_channel(df, std_deviation, look_back):
+    """
+    This function returns a dataframe with prices corresponding to the Upper Deviation,
+    Slope, Lower Deviation, and Correlation columns of the Linear Regression Channel.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The DataFrame containing the data to be used to calculate the linear regression channel.
+        
+    std_deviation : int
+        The number of standard deviations to be used for calculating the channel.
+        
+    look_back : int
+        The number of data points to be used for calculating the linear regression slope.
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        A DataFrame containing the prices corresponding to the Upper Deviation, Slope,
+        Lower Deviation, and Correlation columns of the Linear Regression Channel.
+    """
+    # Calculate the linear regression slope
+    df['Slope'] = df['Close'].rolling(window=look_back,min_periods=1).apply(lambda x: stats.linregress(range(len(x)), x)[0])
+    
+    # Calculate the linear regression intercept
+    df['Intercept'] = df['Close'].rolling(window=look_back,min_periods=1).apply(lambda x: stats.linregress(range(len(x)), x)[1])
+    
+    # Calculate the linear regression channel
+    df['Upper_Deviation'] = df['Intercept'] + std_deviation * df['Close'].rolling(window = look_back,min_periods=1).std()
+    df['Lower_Deviation'] = df['Intercept'] - std_deviation * df['Close'].rolling(window = look_back,min_periods=1).std()
+    
+    # Calculate the correlation coefficient
+    df['Correlation'] = df['Close'].rolling(window=look_back,min_periods=1).corr(df['Slope'])
+    
+    return df
+
+
+def calculate_vzo(df, length=14):
+    close_prices = df['Close']
+    volumes = df['Volume']
+    volume_direction = close_prices.diff()
+    volume_direction[volume_direction >= 0] = volumes[volume_direction >= 0]
+    volume_direction[volume_direction < 0] = -volumes[volume_direction < 0]
+    vzo_volume = pd.Series(volume_direction).ewm(span=length, min_periods=length).mean()
+    total_volume = pd.Series(volumes).ewm(span=length, min_periods=length).mean()
+    vzo = 100 * vzo_volume / total_volume
+    df['VZO'] = vzo
+    return df
 
 
 

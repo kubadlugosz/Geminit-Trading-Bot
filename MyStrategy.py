@@ -1,6 +1,7 @@
 import Utilities as util
 import pandas as pd
-
+import ta 
+import scipy
 class MyStrategy:
     
     def generate_signals_backtest(self,data,user_input,**params):
@@ -12,6 +13,8 @@ class MyStrategy:
             signals = self.RSI_strategy(data,**params)
         elif user_input == 'Stochastic':
             signals = self.Stochastic_strategy(data,**params)
+        elif user_input == 'LinearRegression':
+            signals = self.LinearRegression_strategy(data,**params)
         return signals 
     
     def RSI_strategy(self,data,**params):
@@ -125,6 +128,36 @@ class MyStrategy:
         
         return data
     
+    def LinearRegression_strategy(self,data,**params):
+        data = util.linear_regression_channel(data,2,100)
+        data = util.stochastic_oscillator(data, **params)
+        data = util.crossover(data,data['K'],data['D']) 
+        data = util.calculate_vzo(data)
+        data = data.dropna()
+        data = data.reset_index(drop=True)
+        # Loop through each row and set the signal based on the RSI and previous position
+        data['Signal'] = 0
+        
+        for i in range(1, len(data)):
+            
+            crossover = data['Crossover'][i]
+            vzo = data['VZO'][i]
+            price = data['Close'][i]
+            upper_deviation = data['Upper_Deviation'][i]
+            lower_deviation = data['Lower_Deviation'][i]
+            #condition for buy signal
+            if price < lower_deviation and vzo < 40 and crossover == 1:
+                data['Signal'][i] = 1
+            elif price > upper_deviation and vzo > -40 and crossover == -1:
+                data['Signal'][i] = -1
+            else:
+                data['Signal'][i] = 0
+
+        return data
+        
+
+
+
     def generate_signals_trading_bot(self,data,user_input,**params):
         if user_input == 'RSI':
             rsi = data['RSI'].iloc[-1]

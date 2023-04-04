@@ -39,16 +39,16 @@ def main():
     
     exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
-    symbol = "ETHUSDT"
+    symbol = "LINKUSDT"
     time_frame = '15m'
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()
     backtester = Backtester.Backtester(df, strategy,'RSI',1000, 500, 0.0099)
     
     params = {'k_period': 14, 'd_period': 3}
-    signals = strategy.generate_signals_backtest(df,'Stochastic',**params)
+    signals = strategy.generate_signals_backtest(df,'LinearRegression',**params)
     print(signals)
-
+    signals.to_csv('signals.csv',index=False)
 
 
     # app = TradingApp()
