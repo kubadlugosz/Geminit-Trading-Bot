@@ -1,3 +1,4 @@
+import Utilities as util
 class Backtester:
     def __init__(self, data, strategy,selected_strategy,initial_account_value, ivestment_amount,fee_per_trade):
         self.data = data
@@ -6,6 +7,90 @@ class Backtester:
         self.initial_account_value = initial_account_value
         self.ivestment_amount = ivestment_amount
         self.fee_per_trade = fee_per_trade
+
+    def run_backtest(self, **kwargs):
+        params = kwargs
+        # Create a copy of the data to avoid modifying the original
+        data = self.data.copy()
+        
+        # Apply the strategy to the data
+        signals = self.strategy.generate_signals_backtest(data,self.selected_strategy,**params)
+        # get stop loss and take profit
+        signals = util.profit_stoploss(signals,'atr')
+        account_value, total_profits, num_trades = self.calculate_profit(signals, self.initial_account_value, self.ivestment_amount, self.fee_per_trade)
+        print(account_value, total_profits, num_trades )
+        signals.to_csv('signals.csv',index=False)
+
+
+    def calculate_profit(self,data, initial_account_value, investment_amount, fee_per_trade):
+    # Initialize account value, number of trades, and profits to zero
+        account_value = initial_account_value
+        num_trades = 0
+        total_profits = 0
+    
+        # Loop through each row in the dataframe
+        for i, row in data.iterrows():
+            # Check if there is a trade signal for this row
+            if row['Signal'] != 0:
+                # Calculate the number of shares to buy/sell
+                shares = investment_amount / row['Close']
+                
+                # Calculate the transaction cost
+                transaction_cost = shares * row['Close'] * fee_per_trade
+                
+                # Subtract the transaction cost from the account value
+                account_value -= transaction_cost
+                
+                # Calculate the profit/loss for this trade
+                if row['Signal'] == 1:
+                    # Buy trade
+                    profit = shares * (row['Take_Profit'] - row['Close'])
+                else:
+                    # Sell trade
+                    profit = shares * (row['Close'] - row['Stop_Loss'])
+                
+                # Add the profit to the total profits
+                total_profits += profit
+                
+                # Add the profit to the account value
+                account_value += profit
+                
+                # Increment the number of trades
+                num_trades += 1
+        
+        # Return the account value, total profits, and number of trades
+        return account_value, total_profits, num_trades
+
+
+        def win_rate(signals):
+            # Count the number of winning trades and losing trades
+            num_winning_trades = (signals['Signal'] == 1) & (signals['Take_Profit'] > signals['Close'])
+            num_losing_trades = (signals['Signal'] == -1) & (signals['Stop_Loss'] < signals['Close'])
+            
+            # Calculate the win rate
+            win_rate = num_winning_trades.sum() / (num_winning_trades.sum() + num_losing_trades.sum())
+            
+            return win_rate
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     # def run_backtest(self, **kwargs):

@@ -5,6 +5,9 @@ import config
 import numpy as np
 import ta
 from scipy import stats
+from sklearn.linear_model import LinearRegression
+from scipy.stats import pearsonr
+
 def getData(symbol,time):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
@@ -16,7 +19,7 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-    binance = ccxt.gemini()
+    binance = ccxt.binance()
     # Fetch historical OHLCV data
     ohlcv = binance.fetch_ohlcv(symbol, time)
     
@@ -233,53 +236,67 @@ def calculate_atr_stoploss(df, length=14):
     # Calculate stop loss levels
     df['ATR_High'] = df[src1] - multiplier * df['ATR']
     df['ATR_Low'] = df[src2] + multiplier * df['ATR']
-    multiplier = 1.5
-    src1 = 'High'
-    src2 = 'Low'
-
-    # Calculate stop loss levels
-    df['ATR_High'] = df[src1] - multiplier * df['ATR']
-    df['ATR_Low'] = df[src2] + multiplier * df['ATR']
     
     return df
 
+def profit_stoploss(df, method):
+    df['Take_Profit'] =  0
+    df['Stop_Loss']= 0
+    if method == 'atr':
+        df = calculate_atr_stoploss(df)
+        df = df.dropna()
+        df = df.reset_index(drop=True)
+        for i in range(1, len(df)):
+            signal = df['Signal'][i]
+            take_profit = df['Middle_Channel'][i]
+            atr_high = df['ATR_High'][i]
+            atr_low = df['ATR_Low'][i]
+           
+            #condition for buy signal
+            if signal == 1:
+                df['Take_Profit'][i] = take_profit
+                df['Stop_Loss'][i] = atr_low
+            elif signal == -1:
+                df['Take_Profit'][i] = take_profit
+                df['Stop_Loss'][i] = atr_high
+            else:
+                df['Take_Profit'][i] = 0
+                df['Stop_Loss'][i] = 0
+        return df
 
-def linear_regression_channel(df, std_deviation, look_back):
-    """
-    This function returns a dataframe with prices corresponding to the Upper Deviation,
-    Slope, Lower Deviation, and Correlation columns of the Linear Regression Channel.
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        The DataFrame containing the data to be used to calculate the linear regression channel.
+def linear_regression_channel(df, lookback, std_deviation):
+    if 'Close' not in df:
+        raise KeyError('Close column not found in input DataFrame')
+    if len(df) < lookback:
+        raise ValueError('Input DataFrame is too small for the specified lookback period')
+    channel_df = pd.DataFrame()
+    for i in range(0, len(df), lookback):
+        subset_df = df.iloc[i:i+lookback]
+        # Compute the linear regression line for each window of size 'lookback'
+        x = np.arange(lookback).reshape(-1, 1)
+        linreg = LinearRegression()
+        linreg.fit(x, subset_df['Close'])
+        slope = linreg.coef_[0]
+        intercept = linreg.intercept_
+        linreg_line = intercept + slope * x.flatten()
+        # Compute the Pearson correlations between the closing prices and the linear regression line
+        #corr, _ = pearsonr(df['Close'], linreg_line)
+        # Compute the upper and lower channels using 'std_deviation' standard deviations
+        #std = np.std(df['Close'][-lookback:])
+        std = np.std(subset_df['Close']-linreg_line)
+        upper_channel = linreg_line + std_deviation * std
+        lower_channel = linreg_line - std_deviation * std
         
-    std_deviation : int
-        The number of standard deviations to be used for calculating the channel.
-        
-    look_back : int
-        The number of data points to be used for calculating the linear regression slope.
-        
-    Returns:
-    --------
-    pandas.DataFrame
-        A DataFrame containing the prices corresponding to the Upper Deviation, Slope,
-        Lower Deviation, and Correlation columns of the Linear Regression Channel.
-    """
-    # Calculate the linear regression slope
-    df['Slope'] = df['Close'].rolling(window=look_back,min_periods=1).apply(lambda x: stats.linregress(range(len(x)), x)[0])
     
-    # Calculate the linear regression intercept
-    df['Intercept'] = df['Close'].rolling(window=look_back,min_periods=1).apply(lambda x: stats.linregress(range(len(x)), x)[1])
+        # Add the upper, middle, and lower channels to the original dataframe as new columns
+        subset_df['Upper_Channel'] = upper_channel
+        subset_df['Middle_Channel'] = linreg_line
+        subset_df['Lower_Channel'] = lower_channel
+        #df['Correlation'] = corr
+        channel_df = channel_df.append(subset_df, ignore_index=True)
     
-    # Calculate the linear regression channel
-    df['Upper_Deviation'] = df['Intercept'] + std_deviation * df['Close'].rolling(window = look_back,min_periods=1).std()
-    df['Lower_Deviation'] = df['Intercept'] - std_deviation * df['Close'].rolling(window = look_back,min_periods=1).std()
     
-    # Calculate the correlation coefficient
-    df['Correlation'] = df['Close'].rolling(window=look_back,min_periods=1).corr(df['Slope'])
-    
-    return df
+    return channel_df
 
 
 def calculate_vzo(df, length=14):
