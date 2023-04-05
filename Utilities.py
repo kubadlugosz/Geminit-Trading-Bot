@@ -7,8 +7,12 @@ import ta
 from scipy import stats
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
+<<<<<<< HEAD
 from binance.client import Client
 import talib
+=======
+
+>>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
 def getData(symbol,time):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
@@ -20,7 +24,11 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
+<<<<<<< HEAD
     binance = ccxt.binanceus()
+=======
+    binance = ccxt.binance()
+>>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
     # Fetch historical OHLCV data
     symbol = symbol.replace('USDT', '/USDT')
     ohlcv = binance.fetch_ohlcv(symbol, time)
@@ -269,6 +277,7 @@ def calculate_atr_stoploss(df, length=14):
     # src1 = 'High'
     # src2 = 'Low'
 
+<<<<<<< HEAD
     # # Calculate stop loss levels
     # df['ATR_High'] = df[src1] - multiplier * df['ATR']
     # df['ATR_Low'] = df[src2] + multiplier * df['ATR']
@@ -276,6 +285,12 @@ def calculate_atr_stoploss(df, length=14):
     multiplier = 2
     df['ATR_High'] = df['High'] - multiplier * df['ATR']
     df['ATR_Low'] = df['Low'] + multiplier * df['ATR']
+=======
+    # Calculate stop loss levels
+    df['ATR_High'] = df[src1] - multiplier * df['ATR']
+    df['ATR_Low'] = df[src2] + multiplier * df['ATR']
+    
+>>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
     return df
 
 def profit_stoploss(df, method):

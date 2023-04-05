@@ -37,15 +37,24 @@ import Backtester
 
 def main():
     
-    exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
+    #exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
+<<<<<<< HEAD
     symbol = "LINKUSDT"
     time_frame = '5m'
+=======
+    symbol = "LINK/USDT"
+    time_frame = '15m'
+>>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()
     backtester = Backtester.Backtester(df, strategy,'LinearRegression',1000, 500, 0.0099)
     
+<<<<<<< HEAD
     params = {'k_period': 14, 'd_period': 3,'vzo_length':14}
+=======
+    params = {'k_period': 14, 'd_period': 3}
+>>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
     #signals = strategy.generate_signals_backtest(df,'LinearRegression',**params)
     
     backtester.run_backtest(**params)
