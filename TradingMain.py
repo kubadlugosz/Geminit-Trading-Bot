@@ -39,17 +39,16 @@ def main():
     
     exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
-    symbol = "LINK/USD"
-    time_frame = '15m'
+    symbol = "LINKUSDT"
+    time_frame = '5m'
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()
-    backtester = Backtester.Backtester(df, strategy,'RSI',1000, 500, 0.0099)
+    backtester = Backtester.Backtester(df, strategy,'LinearRegression',1000, 500, 0.0099)
     
-    params = {'k_period': 14, 'd_period': 3}
-    signals = strategy.generate_signals_backtest(df,'LinearRegression',**params)
-    print(signals)
-    signals.to_csv('signals.csv',index=False)
-
+    params = {'k_period': 14, 'd_period': 3,'vzo_length':14}
+    #signals = strategy.generate_signals_backtest(df,'LinearRegression',**params)
+    
+    backtester.run_backtest(**params)
 
     # app = TradingApp()
     

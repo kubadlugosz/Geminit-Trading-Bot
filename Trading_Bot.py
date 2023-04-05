@@ -1,3 +1,5 @@
+from timer import sleep 
+import Utilities as util
 class Trading_Bot:
     def __init__(self,user_input,exchange,symbol,time_frame,strategy,investment_per_trade):
     
@@ -15,12 +17,12 @@ class Trading_Bot:
         open_position=False
        
         while True:
-            df = getData(self.symbol,self.time_frame,self.exchange)
+            df = util.getData(self.symbol,self.time_frame,self.exchange)
             # Apply the strategy to the data
             data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
             print(data.tail(1).to_string(index=False))
             data = data.iloc[-1]
-            signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
+            #signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
             
             
             
@@ -42,13 +44,13 @@ class Trading_Bot:
                    
                     open_position = True 
                     account = self.exchange.get_account()['balances'][6]['free']
-                    create_log(data.Date,price,'BUY',qty,account,0)
+                    util.create_log(data.Date,price,'BUY',qty,account,0)
                     
                     break
 
         if open_position:
             while True:
-                df = getData(self.symbol,self.time_frame,self.exchange)
+                df = util.getData(self.symbol,self.time_frame,self.exchange)
                 # Apply the strategy to the data
                 data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
                 print(data.tail(1).to_string(index=False))
@@ -69,7 +71,7 @@ class Trading_Bot:
                     self.exchange.create_order(symbol=self.symbol,side='SELL',type='MARKET',quantity=str(qty))
                     open_position = False 
                     account = self.exchange.get_account()['balances'][6]['free']
-                    create_log(data.Date,price,'SELL',qty,account,0)
+                    util.create_log(data.Date,price,'SELL',qty,account,0)
                   
                     break
                 sleep(60)

@@ -129,10 +129,11 @@ class MyStrategy:
         return data
     
     def LinearRegression_strategy(self,data,**params):
-        data = util.linear_regression_channel(data,2,100)
+       
+        data = util.linear_regression_channel(data,100,2)
         data = util.stochastic_oscillator(data, **params)
         data = util.crossover(data,data['K'],data['D']) 
-        data = util.calculate_vzo(data)
+        data = util.calculate_vzo(data,**params)
         data = data.dropna()
         data = data.reset_index(drop=True)
         # Loop through each row and set the signal based on the RSI and previous position
@@ -143,8 +144,8 @@ class MyStrategy:
             crossover = data['Crossover'][i]
             vzo = data['VZO'][i]
             price = data['Close'][i]
-            upper_deviation = data['Upper_Deviation'][i]
-            lower_deviation = data['Lower_Deviation'][i]
+            upper_deviation = data['Upper_Channel'][i]
+            lower_deviation = data['Lower_Channel'][i]
             #condition for buy signal
             if price < lower_deviation and vzo < 40 and crossover == 1:
                 data['Signal'][i] = 1
