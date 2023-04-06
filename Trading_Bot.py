@@ -20,12 +20,14 @@ class Trading_Bot:
             df = util.getData(self.symbol,self.time_frame,self.exchange)
             # Apply the strategy to the data
             data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
+            # get stop loss and take profit
+            data = util.profit_stoploss(data,'atr')
             print(data.tail(1).to_string(index=False))
             data = data.iloc[-1]
             #signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
-            
-            
-            
+            signal = data['Signal']
+            take_profit = data['Take_profit']
+            stop_loss = data['Stop_loss']
             ticker= self.exchange.get_symbol_ticker(symbol=self.symbol)
             price = float(ticker['price'])
             
@@ -35,43 +37,38 @@ class Trading_Bot:
           
             sleep(60)
             
-            if not open_position:
-                if signal == 'Buy':
+            
+            if signal == 1:
                     print('Executing buy order',price)
                     
                                      
-                    self.exchange.create_order(symbol=self.symbol,side='BUY',type='MARKET',quantity=str(qty))
-                   
-                    open_position = True 
+                    self.exchange.client.order_market_buy(
+                                                        symbol=self.symbol,
+                                                        quantity=qty
+                                                    )  # initial opening order
+                    self.exchange.client.create_oco_order(
+                                                        symbol=self.symbol,
+                                                        side=self.exchange.client.SIDE_SELL,
+                                                        quantity=qty,
+                                                        stopPrice=stop_loss,
+                                                        stopLimitPrice=stop_loss,
+                                                        price=stop_loss,
+                                                        stopLimitTimeInForce='GTC',
+                                                    )
+                    self.exchange.client.create_oco_order(
+                                                        symbol=self.symbol,
+                                                        side=self.exchange.client.SIDE_SELL,
+                                                        quantity=qty,
+                                                        stopPrice=take_profit,
+                                                        stopLimitPrice=take_profit,
+                                                        price=take_profit,
+                                                        stopLimitTimeInForce='GTC',
+                                                    )
+                                                                    
+                  
                     account = self.exchange.get_account()['balances'][6]['free']
                     util.create_log(data.Date,price,'BUY',qty,account,0)
                     
                     break
 
-        if open_position:
-            while True:
-                df = util.getData(self.symbol,self.time_frame,self.exchange)
-                # Apply the strategy to the data
-                data = self.strategy.generate_signals_backtest(df,self.user_input,**params)
-                print(data.tail(1).to_string(index=False))
-                data = data.iloc[-1]
-                signal = self.strategy.generate_signals_trading_bot(data,self.user_input,**params)
-                
-                
-                
-                ticker= self.exchange.get_symbol_ticker(symbol=self.symbol)
-                price = float(ticker['price'])
-                
-                qty = self.investment_per_trade/price
-                qty = round(float(qty),4)
-                
-                print(signal)
-                if signal == 'Sell':
-                    print('Executing sell order',price)
-                    self.exchange.create_order(symbol=self.symbol,side='SELL',type='MARKET',quantity=str(qty))
-                    open_position = False 
-                    account = self.exchange.get_account()['balances'][6]['free']
-                    util.create_log(data.Date,price,'SELL',qty,account,0)
-                  
-                    break
-                sleep(60)
+       

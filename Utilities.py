@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
 from binance.client import Client
 import talib
-
+import pandas_ta as ta
 def getData(symbol,time):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
@@ -21,7 +21,7 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-    binance = ccxt.binance()
+    binance = ccxt.binanceus()
     # Fetch historical OHLCV data
     symbol = symbol.replace('USDT', '/USDT')
     ohlcv = binance.fetch_ohlcv(symbol, time)
@@ -237,27 +237,29 @@ def stochastic_oscillator(df, **params):
         pandas.DataFrame: New DataFrame with additional columns for the %K and %D lines of the Stochastic Oscillator.
 
     """
-
-    # Create new DataFrame with the same columns as input
-    df_so = df.copy()
-
-    # Extract the parameters from the dictionary
     k_period = params['k_period']
     d_period = params['d_period']
+    df[['K','D']]=df.ta.stoch(high='High', low='Low',close='Close', k=k_period, d_period=3)
+    # # Create new DataFrame with the same columns as input
+    # df_so = df.copy()
 
-    # Calculate the highest high and lowest low over the past k_period periods
-    df_so['HH'] = df_so['High'].rolling(k_period).max()
-    df_so['LL'] = df_so['Low'].rolling(k_period).min()
+    # # Extract the parameters from the dictionary
+    # k_period = params['k_period']
+    # d_period = params['d_period']
 
-    # Calculate the %K line
-    df_so['K'] = 100 * ((df_so['Close'] - df_so['LL']) / (df_so['HH'] - df_so['LL']))
+    # # Calculate the highest high and lowest low over the past k_period periods
+    # df_so['HH'] = df_so['High'].rolling(k_period).max()
+    # df_so['LL'] = df_so['Low'].rolling(k_period).min()
 
-    # Calculate the %D line
-    df_so['D'] = df_so['K'].rolling(d_period).mean()
+    # # Calculate the %K line
+    # df_so['K'] = 100 * ((df_so['Close'] - df_so['LL']) / (df_so['HH'] - df_so['LL']))
+
+    # # Calculate the %D line
+    # df_so['D'] = df_so['K'].rolling(d_period).mean()
     #df_so = df_so.dropna()
     #df_so = df_so.reset_index(drop=True)
     # Return the new DataFrame with %K and %D columns
-    return df_so
+    return df
 
 
 
@@ -283,18 +285,67 @@ def profit_stoploss(df, method):
             take_profit = df['Middle_Channel'][i]
             atr_high = df['ATR_High'][i]
             atr_low = df['ATR_Low'][i]
-           
+            fib_low = df['Fib_0.236'][i]
+            fib_high = df['Fib_0.786'][i]
+            trend = df['Trend'][i]
             #condition for buy signal
-            if signal == 1:
+            if signal == 1 and trend == 'Upward trend':
                 df['Take_Profit'][i] = take_profit
                 df['Stop_Loss'][i] = atr_low
-            elif signal == -1:
+            elif signal == 1 and trend == 'Downward trend':
+                df['Take_Profit'][i] = fib_low
+                df['Stop_Loss'][i] = atr_low    
+            elif signal == -1 and trend == 'Downward trend':
                 df['Take_Profit'][i] = take_profit
+                df['Stop_Loss'][i] = atr_high
+            elif signal == -1 and trend == 'Upward trend':
+                df['Take_Profit'][i] = fib_high
                 df['Stop_Loss'][i] = atr_high
             else:
                 df['Take_Profit'][i] = 0
                 df['Stop_Loss'][i] = 0
         return df
+    
+def linear_regression_channel(df, lookback, std_deviation):
+    if 'Close' not in df:
+        raise KeyError('Close column not found in input DataFrame')
+    if len(df) < lookback:
+        raise ValueError('Input DataFrame is too small for the specified lookback period')
+
+    # Compute the linear regression line for each window of size 'lookback'
+    x = np.arange(lookback).reshape(-1, 1)
+    linreg = LinearRegression()
+    linreg_line = df['Close'].rolling(lookback).apply(lambda y: linreg.fit(x, y).intercept_ + linreg.fit(x, y).coef_[0] * x.flatten(), raw=False)
+    
+    # Compute the Pearson correlations between the closing prices and the linear regression line
+    #corr, _ = pearsonr(df['Close'], linreg_line)
+    # Compute the upper and lower channels using 'std_deviation' standard deviations
+    #std = np.std(df['Close'][-lookback:])
+    std = (df['Close'] - linreg_line).rolling(lookback).std()
+    upper_channel = linreg_line + std_deviation * std
+    lower_channel = linreg_line - std_deviation * std
+    
+    # Compute the Fibonacci levels
+    fib_levels = [0.236, 0.382, 0.618, 0.786]
+    fib_values = np.array([(lower_channel + level * (upper_channel - lower_channel)) for level in fib_levels]).T
+    
+    # Add the upper, middle, and lower channels to the original dataframe as new columns
+    df['Upper_Channel'] = upper_channel
+    df['Middle_Channel'] = linreg_line
+    df['Lower_Channel'] = lower_channel
+    
+    # Add Fibonacci levels to dataframe
+    for i, level in enumerate(fib_levels):
+        df[f'Fib_{level:.3f}'] = fib_values[:, i]
+    
+    # Check the trend of the linear regression line
+    trend_is_up = linreg_line.diff() > 0
+    trend_is_down = linreg_line.diff() < 0
+    df.loc[trend_is_up, 'Trend'] = "Upward trend"
+    df.loc[trend_is_down, 'Trend'] = "Downward trend"
+    df.loc[~(trend_is_up | trend_is_down), 'Trend'] = "Sideways trend"
+    
+    return df
 
 def linear_regression_channel(df, lookback, std_deviation):
     if 'Close' not in df:

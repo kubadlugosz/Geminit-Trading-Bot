@@ -39,7 +39,7 @@ def main():
     
     #exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
     # #MACD
-    symbol = "LINKUSDT"
+    symbol = "DOGEUSDT"
     time_frame = '15m'
 
     df = util.getData(symbol,time_frame) 
@@ -50,8 +50,13 @@ def main():
 
     #signals = strategy.generate_signals_backtest(df,'LinearRegression',**params)
     
-    backtester.run_backtest(**params)
-
+    #backtester.run_backtest(**params)
+    param_names = ['k_period','d_period','vzo_length','vzo_smooth_length']
+    param_ranges = [{x for x in range(1,20,3)},{x for x in range(1,20,3)},{x for x in range(1,20,3)},{x for x in range(1,20,3)}]
+    param_combo = util.generate_parameter_combinations(param_names, param_ranges)
+    # results = backtester.optimize_parameters(param_combo)
+    # print(results)
+    backtester.plot_backtest(**params)
     # app = TradingApp()
     
     # # Start the Tk mainloop

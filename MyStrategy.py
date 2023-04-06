@@ -146,12 +146,14 @@ class MyStrategy:
             crossover = data['Crossover'][i]
             vzo = data['VZO'][i]
             price = data['Close'][i]
+            high_price = data['High'][i]
+            low_price = data['Low'][i]
             upper_deviation = data['Upper_Channel'][i]
             lower_deviation = data['Lower_Channel'][i]
             #condition for buy signal
-            if price < lower_deviation and vzo < -40 and crossover == 1:
+            if low_price < lower_deviation and vzo <= -35 and crossover == 1:
                 data['Signal'][i] = 1
-            elif price > upper_deviation and vzo > 40 and crossover == -1:
+            elif high_price > upper_deviation and vzo >= 35 and crossover == -1:
                 data['Signal'][i] = -1
             else:
                 data['Signal'][i] = 0
