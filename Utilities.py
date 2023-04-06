@@ -7,12 +7,9 @@ import ta
 from scipy import stats
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
-<<<<<<< HEAD
 from binance.client import Client
 import talib
-=======
 
->>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
 def getData(symbol,time):
     """
     1504541580000, // UTC timestamp in milliseconds, integer
@@ -24,11 +21,7 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-<<<<<<< HEAD
-    binance = ccxt.binanceus()
-=======
     binance = ccxt.binance()
->>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
     # Fetch historical OHLCV data
     symbol = symbol.replace('USDT', '/USDT')
     ohlcv = binance.fetch_ohlcv(symbol, time)
@@ -261,8 +254,8 @@ def stochastic_oscillator(df, **params):
 
     # Calculate the %D line
     df_so['D'] = df_so['K'].rolling(d_period).mean()
-    df_so = df_so.dropna()
-    df_so = df_so.reset_index()
+    #df_so = df_so.dropna()
+    #df_so = df_so.reset_index(drop=True)
     # Return the new DataFrame with %K and %D columns
     return df_so
 
@@ -270,27 +263,12 @@ def stochastic_oscillator(df, **params):
 
 
 def calculate_atr_stoploss(df, length=14):
-    # df['TR'] = np.max([df['High'] - df['Low'], abs(df['High'] - df['Close'].shift()), abs(df['Low'] - df['Close'].shift())], axis=0)
-    # df['ATR'] = df['TR'].rolling(window=length).mean()
-    # # Set inputs for stop loss calculation
-    # multiplier = 1.5
-    # src1 = 'High'
-    # src2 = 'Low'
+   
+    multiplier = 1.5
 
-<<<<<<< HEAD
-    # # Calculate stop loss levels
-    # df['ATR_High'] = df[src1] - multiplier * df['ATR']
-    # df['ATR_Low'] = df[src2] + multiplier * df['ATR']
     df['ATR'] = talib.ATR(df['High'], df['Low'], df['Close'], timeperiod=length)
-    multiplier = 2
-    df['ATR_High'] = df['High'] - multiplier * df['ATR']
-    df['ATR_Low'] = df['Low'] + multiplier * df['ATR']
-=======
-    # Calculate stop loss levels
-    df['ATR_High'] = df[src1] - multiplier * df['ATR']
-    df['ATR_Low'] = df[src2] + multiplier * df['ATR']
-    
->>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
+    df['ATR_High'] = df['ATR']  * multiplier + df['High']
+    df['ATR_Low'] = df['Low'] - df['ATR']  * multiplier
     return df
 
 def profit_stoploss(df, method):
@@ -333,6 +311,10 @@ def linear_regression_channel(df, lookback, std_deviation):
         slope = linreg.coef_[0]
         intercept = linreg.intercept_
         linreg_line = intercept + slope * x.flatten()
+        
+        # Check the trend of the linear regression line
+        trend_is_up =  slope > 0
+        trend_is_down = slope < 0
         # Compute the Pearson correlations between the closing prices and the linear regression line
         #corr, _ = pearsonr(df['Close'], linreg_line)
         # Compute the upper and lower channels using 'std_deviation' standard deviations
@@ -341,11 +323,22 @@ def linear_regression_channel(df, lookback, std_deviation):
         upper_channel = linreg_line + std_deviation * std
         lower_channel = linreg_line - std_deviation * std
         
-    
+        subset_df['Fib_0.236'] = lower_channel + 0.236 * (upper_channel - lower_channel)
+        subset_df['Fib_0.382'] = lower_channel + 0.382 * (upper_channel - lower_channel)
+        subset_df['Fib_0.618'] = lower_channel + 0.618 * (upper_channel - lower_channel)
+        subset_df['Fib_0.786'] = lower_channel + 0.786 * (upper_channel - lower_channel)
         # Add the upper, middle, and lower channels to the original dataframe as new columns
         subset_df['Upper_Channel'] = upper_channel
         subset_df['Middle_Channel'] = linreg_line
         subset_df['Lower_Channel'] = lower_channel
+
+        subset_df['Trend'] = "No clear trend"
+        if slope > 0:
+            subset_df['Trend'] = "Upward trend"
+        elif slope < 0:
+            subset_df['Trend'] = "Downward trend"
+        elif slope == 0:
+            subset_df['Trend'] = "Sideways trend"
         #df['Correlation'] = corr
         channel_df = channel_df.append(subset_df, ignore_index=True)
     
@@ -353,18 +346,22 @@ def linear_regression_channel(df, lookback, std_deviation):
     return channel_df
 
 
-def calculate_vzo(df,**params):
-  
-    close_prices = df['Close']
-    volumes = df['Volume']
-    volume_direction = close_prices.diff()
-    volume_direction[volume_direction >= 0] = volumes[volume_direction >= 0]
-    volume_direction[volume_direction < 0] = -volumes[volume_direction < 0]
-    vzo_volume = pd.Series(volume_direction).ewm(span=params['vzo_length'], min_periods=params['vzo_length']).mean()
-    total_volume = pd.Series(volumes).ewm(span=params['vzo_length'], min_periods=params['vzo_length']).mean()
-    vzo = 100 * vzo_volume / total_volume
-    df['VZO'] = vzo
+
+def calculate_vzo(df, **params):
+    vzo_len = params['vzo_length']
+    vzo_smooth = params['vzo_smooth_length']
+    svol = np.where(df['Open'] < df['Close'], df['Volume'], -df['Volume'])
+    vp = pd.Series(svol).ewm(span=vzo_len).mean()
+    tv = df['Volume'].ewm(span=vzo_len).mean()
+    vzo_val = 100 * vp / tv
+    vzo_val = vzo_val.ewm(span=vzo_smooth).mean()
+    df['VZO'] = vzo_val
     return df
+
+
+
+
+
 
 
 

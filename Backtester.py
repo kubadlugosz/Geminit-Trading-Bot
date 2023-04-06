@@ -1,8 +1,5 @@
 import Utilities as util
-<<<<<<< HEAD
 import pandas as pd
-=======
->>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
 class Backtester:
     def __init__(self, data, strategy,selected_strategy,initial_account_value, ivestment_amount,fee_per_trade):
         self.data = data
@@ -21,9 +18,8 @@ class Backtester:
         signals = self.strategy.generate_signals_backtest(data,self.selected_strategy,**params)
         # get stop loss and take profit
         signals = util.profit_stoploss(signals,'atr')
-<<<<<<< HEAD
-        total_profits = self.calculate_total_profits(signals, self.initial_account_value, self.ivestment_amount, self.fee_per_trade)
-        print(total_profits)
+        # total_profits = self.calculate_total_profits(signals, self.initial_account_value, self.ivestment_amount, self.fee_per_trade)
+        # print(total_profits)
         signals.to_csv('signals.csv',index=False)
         
         
@@ -45,111 +41,91 @@ class Backtester:
         num_shares = 0
         num_trades = 0
         total_profit = 0
-        data['Account Value'] = 0
+        
+        data['Account Value'] = initial_account_value
         data['Gains/Losses'] = 0
         purchase_price = 0
+        stop_loss_price = None
+        take_profit_price =  None 
+        take_profit_value = None
+        stop_loss_value =  None
+        position = None
+        
         for i in range(len(data)):
             if data['Signal'][i] == 1: # Buy signal
-                num_trades += 1 #increment number of trades
                 # Calculate how many tokens were purchased with the investment amount, factoring in the trading fee
-                num_shares = (investment_amount - fee_per_trade) / data['Close'][i]
-                purchase_price = data['Close'][i]
-                # Deduct the total cost of the shares purchased and trading fee from the account value
-                purchase_cost = num_shares * purchase_price
-                account_value -= purchase_cost
-                account_value -= fee_per_trade
+                num_shares = (investment_amount - (fee_per_trade*100)) / data['Close'][i]
+                # Deduct the total investment amount and trading fee from the account value
+                account_value -= investment_amount 
                 data['Account Value'][i] = account_value
-                # Check for stop loss and take profit conditions for buy
-                stop_loss_price = purchase_price * (1 - data['Stop_Loss'][i] / 100) if not pd.isna(data['Stop_Loss'][i]) else None
-                take_profit_price = purchase_price * (1 + data['Take_Profit'][i] / 100) if not pd.isna(data['Take_Profit'][i]) else None
-                if stop_loss_price is not None or take_profit_price is not None:
-                    while num_shares > 0 and i < len(data)-1:
-                        i += 1
-                        current_price = data['Close'][i]
-                        if stop_loss_price is not None and current_price <= stop_loss_price:
-                            # Sell at stop loss
-                            sell_value = num_shares * stop_loss_price
-                            trade_profit = sell_value - purchase_cost - fee_per_trade
-                            total_profit += trade_profit
-                            data['Gains/Losses'][i] = trade_profit
-                            # Reset the number of shares and increment the number of trades
-                            num_shares = 0
-                            num_trades += 1
-                            # Add the trade profit to the account value
-                            account_value += sell_value
-                            account_value -= fee_per_trade
-                            data['Account Value'][i] = account_value
-                        elif take_profit_price is not None and current_price >= take_profit_price:
-                            # Sell at take profit
-                            sell_value = num_shares * take_profit_price
-                            trade_profit = sell_value - purchase_cost - fee_per_trade
-                            total_profit += trade_profit
-                            data['Gains/Losses'][i] = trade_profit
-                             # Reset the number of shares and increment the number of trades
-                            num_shares = 0
-                            num_trades += 1
-                            # Add the trade profit to the account value
-                            account_value += sell_value
-                            account_value -= fee_per_trade
-                            data['Account Value'][i] = account_value
+                purchase_price = data['Close'][i]
+                stop_loss_price = data['Stop_Loss'][i]
+                take_profit_price =  data['Take_Profit'][i] 
+               
+                take_profit_value = num_shares * (take_profit_price - purchase_price)
+                stop_loss_value =  num_shares * (stop_loss_price - purchase_price)
+                position = 'Long'
 
-                        elif data['Signal'][i] == -1: # Sell signal (shorting)
-                            num_trades += 1 # increment number of trades
-                            # Calculate how many tokens were sold at the current price, factoring in the trading fee
-                            num_shares = (investment_amount - fee_per_trade) / data['Close'][i]
-                            sell_price = data['Close'][i]
-                            # Add the total amount earned from selling the shares and deduct the trading fee from the account value
-                            sell_value = num_shares * sell_price
-                            account_value += sell_value
-                            account_value -= fee_per_trade
-                            data['Account Value'][i] = account_value
-                            # Check for stop loss and take profit conditions for sell
-                            stop_loss_price = sell_price * (1 + data['Stop_Loss'][i] / 100) if not pd.isna(data['Stop_Loss'][i]) else None
-                            take_profit_price = sell_price * (1 - data['Take_Profit'][i] / 100) if not pd.isna(data['Take_Profit'][i]) else None
-                            if stop_loss_price is not None or take_profit_price is not None:
-                                while num_shares > 0 and i < len(data)-1:
-                                    i += 1
-                                    current_price = data['Close'][i]
-                                    if stop_loss_price is not None and current_price >= stop_loss_price:
-                                        # Buy to cover at stop loss
-                                        buy_value = num_shares * stop_loss_price
-                                        trade_profit = sell_value - buy_value - fee_per_trade
-                                        total_profit += trade_profit
-                                        data['Gains/Losses'][i] = trade_profit
-                                        # Reset the number of shares and increment the number of trades
-                                        num_shares = 0
-                                        num_trades += 1
-                                        # Add the trade profit to the account value
-                                        account_value += buy_value
-                                        account_value -= fee_per_trade
-                                        data['Account Value'][i] = account_value
-                                    elif take_profit_price is not None and current_price <= take_profit_price:
-                                        # Buy to cover at take profit
-                                        buy_value = num_shares * take_profit_price
-                                        trade_profit = sell_value - buy_value - fee_per_trade
-                                        total_profit += trade_profit
-                                        data['Gains/Losses'][i] = trade_profit
-                                        # Reset the number of shares and increment the number of trades
-                                        num_shares = 0
-                                        num_trades += 1
-                                        # Add the trade profit to the account value
-                                        account_value += buy_value
-                                        account_value -= fee_per_trade
-                                        data['Account Value'][i] = account_value
-                                    elif i == len(data)-1:
-                                        # If we reach the end of the data and haven't hit a stop loss or take profit, close the position
-                                        buy_value = num_shares * current_price
-                                        trade_profit = sell_value - buy_value - fee_per_trade
-                                        total_profit += trade_profit
-                                        data['Gains/Losses'][i] = trade_profit
-                                        # Add the trade profit to the account value
-                                        account_value += buy_value
-                                        account_value -= fee_per_trade
-                                        data['Account Value'][i] = account_value
-                        else: # Hold signal
-                            data['Account Value'][i] = account_value # Update account value with no changes
+
+            # Check if price reaches take profit or stop loss
+            if num_shares > 0 and position == 'Long':
+                if data['Close'][i] >= take_profit_price:
+                    # Sell all shares and calculate profit
+                    account_value += take_profit_value
+                    data['Account Value'][i] = account_value
+                    gains_losses = (take_profit_price - purchase_price) * num_shares
+                    data['Gains/Losses'][i] = gains_losses
+                   
+                    total_profit += gains_losses
+                    num_shares = 0
+                elif data['Close'][i] <= stop_loss_price:
+                    # Sell all shares and calculate loss
+                    account_value += stop_loss_value
+                    data['Account Value'][i] = account_value
+                    gains_losses = (stop_loss_price - purchase_price) * num_shares
+                    data['Gains/Losses'][i] = gains_losses
+                    total_profit += gains_losses
+                    num_shares = 0
+
+            elif data['Signal'][i] == -1: # Buy signal
+                # Calculate how many tokens were purchased with the investment amount, factoring in the trading fee
+                num_shares = (investment_amount - (fee_per_trade*100)) / data['Close'][i]
+                # Deduct the total investment amount and trading fee from the account value
+                account_value -= investment_amount 
+                data['Account Value'][i] = account_value
+                purchase_price = data['Close'][i]
+                stop_loss_price = data['Stop_Loss'][i]
+                take_profit_price =  data['Take_Profit'][i] 
             
-            return total_profit
+                take_profit_value = num_shares * (take_profit_price - purchase_price)
+                stop_loss_value =  num_shares * (stop_loss_price - purchase_price)
+                position = 'Short'
+
+            # Check if price reaches take profit or stop loss
+            if num_shares > 0 and position == 'Short':
+                if data['Close'][i] >= stop_loss_price:
+                    # Sell all shares and calculate profit
+                    account_value += take_profit_value
+                    data['Account Value'][i] = account_value
+                    gains_losses = (take_profit_price - purchase_price) * num_shares
+                    data['Gains/Losses'][i] = gains_losses
+                   
+                    total_profit += gains_losses
+                    num_shares = 0
+                elif data['Close'][i] <= take_profit_price:
+                    # Sell all shares and calculate loss
+                    account_value += stop_loss_value
+                    data['Account Value'][i] = account_value
+                    gains_losses = (stop_loss_price - purchase_price) * num_shares
+                    data['Gains/Losses'][i] = gains_losses
+                    total_profit += gains_losses
+                    num_shares = 0
+            elif data['Signal'][i] == 0: # Hold signal
+                 data['Account Value'][i] = account_value
+
+                
+            
+        return total_profit
                 
                 
                 
@@ -173,13 +149,12 @@ class Backtester:
             #     data['Account Value'][i] = account_value
 
         # Add the final account value to the total profit
-        total_profit += account_value - initial_account_value
+        # total_profit += account_value - initial_account_value
 
 
-=======
-        account_value, total_profits, num_trades = self.calculate_profit(signals, self.initial_account_value, self.ivestment_amount, self.fee_per_trade)
-        print(account_value, total_profits, num_trades )
-        signals.to_csv('signals.csv',index=False)
+        # account_value, total_profits, num_trades = self.calculate_profit(signals, self.initial_account_value, self.ivestment_amount, self.fee_per_trade)
+        # print(account_value, total_profits, num_trades )
+        # signals.to_csv('signals.csv',index=False)
 
 
     def calculate_profit(self,data, initial_account_value, investment_amount, fee_per_trade):
@@ -220,7 +195,6 @@ class Backtester:
         
         # Return the account value, total profits, and number of trades
         return account_value, total_profits, num_trades
->>>>>>> cbadb8e62a48e5a3a0f9b23302ef716621ced3db
 
 
         def win_rate(signals):
