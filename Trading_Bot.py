@@ -1,4 +1,4 @@
-# from timer import sleep 
+import time
 import Utilities as util
 class Trading_Bot:
     def __init__(self,user_input,exchange,symbol,time_frame,strategy,investment_per_trade):
@@ -14,8 +14,9 @@ class Trading_Bot:
     def run_strategy(self, **kwargs):
         params = kwargs
         
-        open_position=False
-       
+        
+        open_position = False
+        order_ids = {}
         while True:
             df = util.getData(self.symbol,self.time_frame)
             # Apply the strategy to the data
@@ -36,10 +37,10 @@ class Trading_Bot:
             qty = round(float(qty),4)
             print(signal)
           
+           
             
-            
-            
-            if signal == 1:
+            time.sleep(int(self.time_frame.replace('m', ''))*60)
+            if signal == 1 and not open_position:
                     # we will be excuting a long position
                     print('Executing long order',price,"with take profit",take_profit,"and stop loss",stop_loss)
                     

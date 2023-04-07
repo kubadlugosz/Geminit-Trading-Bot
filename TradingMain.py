@@ -51,7 +51,7 @@ def main():
     exchange.set_sandbox_mode(True)
     # #MACD
     symbol = "LINK/USDT"
-    time_frame = '15m'
+    time_frame = '1m'
     
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()

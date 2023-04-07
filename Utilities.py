@@ -10,22 +10,23 @@ from scipy.stats import pearsonr
 from binance.client import Client
 import talib
 import pandas_ta as ta
-def getData(symbol,time):
+from ccxt import ExchangeError, RequestTimeout
+import time
+def getData(symbol, time_frame, max_retries=5):
     """
-    1504541580000, // UTC timestamp in milliseconds, integer
-    4235.4,        // (O)pen price, float
-    4240.6,        // (H)ighest price, float
-    4230.0,        // (L)owest price, float
-    4230.7,        // (C)losing price, float
-    37.72941911    // (V)olume float (usually in terms of the base currency, the exchanges docstring may list whether quote or base units are used)
+    Fetch historical OHLCV data from Binance
     """
-    
-    # Initialize the Binance exchange object
     binance = ccxt.binance()
-    # Fetch historical OHLCV data
-    #symbol = symbol.replace('USDT', '/USDT')
-    ohlcv = binance.fetch_ohlcv(symbol, time)
-    
+    for i in range(max_retries):
+        try:
+            ohlcv = binance.fetch_ohlcv(symbol, time_frame)
+            break  # break out of the loop if the request was successful
+        except (ExchangeError, RequestTimeout) as e:
+            print(f"Failed to fetch data ({e}). Retrying in 10 seconds...")
+            time.sleep(10)
+    else:
+        raise ValueError(f"Failed to fetch data after {max_retries} retries")
+
     columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
     df = pd.DataFrame(ohlcv, columns=columns)
 
