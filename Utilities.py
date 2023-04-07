@@ -21,9 +21,9 @@ def getData(symbol,time):
     """
     
     # Initialize the Binance exchange object
-    binance = ccxt.binanceus()
+    binance = ccxt.binance()
     # Fetch historical OHLCV data
-    symbol = symbol.replace('USDT', '/USDT')
+    #symbol = symbol.replace('USDT', '/USDT')
     ohlcv = binance.fetch_ohlcv(symbol, time)
     
     columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']

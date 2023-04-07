@@ -28,7 +28,7 @@ import Utilities as util
 import MyStrategy
 import Backtester
 
-
+import Trading_Bot
 
             
 
@@ -38,10 +38,21 @@ import Backtester
 def main():
     
     #exchange = Client(api_key=config.key,api_secret=config.secret,tld='us',testnet=True)
+    exchange = ccxt.binance({
+    'apiKey': config.key,
+    'secret': config.secret,
+    'enableRateLimit': True,
+    'options': {
+        'defaultType': 'future',  # enable paper trading
+        'test': True, # enable margin trading
+        'adjustForTimeDifference': True,
+        }
+    })
+    exchange.set_sandbox_mode(True)
     # #MACD
-    symbol = "DOGEUSDT"
+    symbol = "LINK/USDT"
     time_frame = '15m'
-
+    
     df = util.getData(symbol,time_frame) 
     strategy = MyStrategy.MyStrategy()
     backtester = Backtester.Backtester(df, strategy,'LinearRegression',1000, 500, 0.0099)
@@ -56,7 +67,11 @@ def main():
     param_combo = util.generate_parameter_combinations(param_names, param_ranges)
     # results = backtester.optimize_parameters(param_combo)
     # print(results)
-    backtester.plot_backtest(**params)
+    #backtester.plot_backtest(**params)
+
+    #initialize trading bot
+    trading_bot = Trading_Bot.Trading_Bot('LinearRegression',exchange,symbol,time_frame,strategy,100)
+    trading_bot.run_strategy(**params)
     # app = TradingApp()
     
     # # Start the Tk mainloop
